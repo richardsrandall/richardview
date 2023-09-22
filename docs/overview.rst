@@ -55,7 +55,7 @@ This package can be installed using pip, as follows:
 
 .. code-block::
     
-    python -m pip install pyserial
+    python -m pip install richardview
 
 You could also download the source code from github and place the richardview folder in the same directory where 
 you plan to put the dashboard initialization .py file.
