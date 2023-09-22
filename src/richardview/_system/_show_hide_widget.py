@@ -1,7 +1,7 @@
 from tkinter import *
 import ctypes
-import os
 from tkinter import messagebox
+import webbrowser
 
 
 # Show and hide widget
@@ -32,7 +32,7 @@ class ShowHideWidget:
         self.serial_shown = True
         Button(self.frame,textvariable=self.serial_shown_text,command=self._toggle_serial_shown).grid(row=3,column=1,sticky='nesw')
         # General help button
-        Button(self.frame, text="Show help file", command=self._documentation).grid(row=4,column=1,sticky='nesw')
+        Button(self.frame, text="Open Help Website", command=self._documentation).grid(row=4,column=1,sticky='nesw')
         # Automation help button
         Button(self.frame, text="Print Automation Help to Console", command = self._print_automation_help).grid(row=5,column=1,sticky='nesw')
 
@@ -81,7 +81,7 @@ class ShowHideWidget:
     # Help/documentation functions
     def _documentation(self):
         """Open a more comprehensive document/site for support using this package."""
-        os.startfile('system\\richardView_notes.txt')
+        webbrowser.open('https://richardview.readthedocs.io/')
 
 
     def _print_automation_help(self):

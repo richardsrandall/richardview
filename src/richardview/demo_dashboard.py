@@ -95,7 +95,7 @@ def run_demo_dashboard():
 
 
 
-
+run_demo_dashboard()
 
 
 

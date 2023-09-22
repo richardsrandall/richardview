@@ -22,8 +22,8 @@ could manage.
 
 The project can be installed using pip from PyPI_ and its source code is available on Github_.
 
-.. _PyPI: https://pypi.org/
-.. _Github: https://github.com/
+.. _PyPI: https://pypi.org/project/richardview/
+.. _Github: https://github.com/richardsrandall/richardview
 
 .. toctree::
    :maxdepth: 2
