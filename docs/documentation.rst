@@ -138,7 +138,7 @@ The ''Valco2WayValveWidget'' class
     :show-inheritance:
 
 The ''SRIGasChromatographFIDWidget'' class
-----------------------------------
+-----------------------------------------------
 .. autoclass:: richardview.majumdar_lab_widgets.sri_gc_fid_Widget.SRIGasChromatographFIDWidget
     :members:
     :private-members:
