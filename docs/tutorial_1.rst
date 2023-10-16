@@ -64,7 +64,8 @@ a nickname, which is used to identify it in data logs and automation scripts. An
 has a dropdown menu to select which serial port it should connect through. Once polling starts, the dashboard will 
 poll the device's state on a regular basis, displaying the updated values in the widget. Some widgets also have user 
 input fields and a 'confirm' button. Changing the fields does nothing until that widget's 'confirm' button is pressed, 
-at which point the widget sends commands to the device containing the input fields' latest values. The Spice-O-Meter 
+at which point the widget sends commands to the device containing the input fields' latest values. It's normal for some 
+widgets' fields to say 'read error' the polling cycle after 'confirm' is pressed. The Spice-O-Meter 
 exists as a simple demonstration of some options for building widgets; unlike the others, it doesn't actually correspond to a 
 physical device.
 

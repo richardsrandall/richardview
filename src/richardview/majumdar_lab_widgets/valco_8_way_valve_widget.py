@@ -3,14 +3,10 @@ import numpy as np
 from .. import generic_widget
 from .. import generic_serial_emulator
 
-class Valco2WayValveWidget(generic_widget.GenericWidget):
-    """ Widget for a VICI Valco 2-position valve, like this: https://www.vici.com/vval/vval_2pos.php . 
-    These valves have two positions that are internally referred to as 'A' and 'B'. In the widget, the positions can be labeled whatever you want.\n
-
-    Valco produces many other valves, e.g. 9-way selector valves. To control one of them, you could probably copy-paste the source code of this module and make pretty minor modifications 
-    to on_serial_query, on_serial_read, on_confirm, and the serial emulator class. Refer to the valve's documentation and/or mess around manually with a serial connection 
-    (Pyserial in a shell like IDLE is probably easiest) to figure out the serial protocol for controlling a different type of Valco valve -- e.g., valves with more than 2 positions may 
-    label the positions with numbers rather than letters in the serial protocol.
+class Valco8WayValveWidget(generic_widget.GenericWidget):
+    """ Widget for a VICI Valco 8-position valve, like this: https://www.vici.com/vval/vval_2pos.php . 
+    These valves have eight numbered positions, 1-8. In the widget, the positions can be labeled whatever you want.
+    A separate widget exists for controlling 2-way valves. This widget might work as-is with Valco 4 or 6-way valves; not sure.\n
     
     :param parent_dashboard: The dashboard object to which this device will be added
     :type parent_dashboard: richardview.dashboard.RichardViewDashboard
@@ -29,9 +25,9 @@ class Valco2WayValveWidget(generic_widget.GenericWidget):
     """
 
     def __init__(self,parent_dashboard,name,nickname,default_serial_port,valve_positions,valve_id='1'):
-        """ Constructor for a VICI Valco 2-way valve widget."""
+        """ Constructor for a VICI Valco 8-way valve widget."""
         # Initialize the superclass with most of the widget functionality
-        super().__init__(parent_dashboard,name,nickname,'#ADD8E6',default_serial_port=default_serial_port,baudrate=9600)
+        super().__init__(parent_dashboard,name,nickname,'#8DC8D6',default_serial_port=default_serial_port,baudrate=9600)
         # Record the valve id
         self.valve_id=valve_id.encode('ascii')
         # Add a dropdown field
@@ -63,20 +59,17 @@ class Valco2WayValveWidget(generic_widget.GenericWidget):
     def on_serial_read(self):
         """Parse the responses from the previous serial query and update the display. Return True if the response is valid and an error string if not.
 
-        :return: True if all the response was of the expected format, False otherwise.
+        :return: True if all the response was of the expected format, an error string otherwise.
         :rtype: bool or str
         """
         status = str(self.serial_object.readline())
         try:
-            i = status.index("\"")+1
-            is_A = status[i]=='A'
-            if is_A:
-                self.set_field('Actual Position',self.valve_positions[0])
-            else:
-                self.set_field('Actual Position',self.valve_positions[1])
+            i = status.index("0")+1
+            num = int(status[i])
+            self.set_field('Actual Position',self.valve_positions[num-1])
         except Exception as e:
-            fail_message=("Unexpected response received from 2-way valve: "+str(status))
             self.set_field('Actual Position','Read Error')
+            fail_message=("Unexpected response received from 8-way valve: "+str(status))
             return fail_message
         return True
 
@@ -91,13 +84,10 @@ class Valco2WayValveWidget(generic_widget.GenericWidget):
         if not (selected in self.valve_positions):
             print("\"Confirm\" pressed with no/invalid option selected.")
             return
-        choice = self.valve_positions.index(selected)
-        if choice==0:
-            print("Moving valve \""+self.name+"\" to \""+selected+"\" (A)")
-            self.serial_object.write(self.valve_id+b'GOA\r')
-        else:
-            print("Moving valve \""+self.name+"\" to \""+selected+"\" (B)")
-            self.serial_object.write(self.valve_id+b'GOB\r')
+        choice = self.valve_positions.index(selected)+1
+        choice_no = str(choice).encode('ascii')
+        to_send=self.valve_id+b'GO'+choice_no+b'\r'
+        self.serial_object.write(to_send)
 
     def construct_serial_emulator(self):
         """Get the serial emulator to use when we're testing in offline mode.

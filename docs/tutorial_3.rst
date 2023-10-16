@@ -71,15 +71,23 @@ understand what all these methods do. But first, here are a couple of important 
     process the data before logging it or log data that aren't RichardView fields. It just needs to return a ``dict`` of the 
     names and values of the data to be logged at a given time step.
 
-*   The ``on_serial_read`` method is expected to return ``True`` or ``False`` based on whether a valid response was read from 
+*   The ``on_serial_read`` method is expected to return ``True``, ``False``, or an error string based on whether a valid response was read from 
     the serial port. This is important because when the widget first queries and reads from the serial device (a 'handshake'), 
     the return value of ``on_serial_read`` is passed as an argument to ``on_serial_open``. If ``on_serial_open`` receives a 
-    value of ``False``, you'll probably want set the values of the sensor readouts to something like "No Reading".
+    value of ``False`` or ``'Failed to Parse Response'``, you'll probably want set the values of the sensor readouts to something like "No Reading". 
+    If it returns a string error message, that message will automatically be printed to the console.
 
 *   There are a couple of special features of ``GenericWidget`` that are meant to deal with funny edge cases, like a widget with 
     no serial connection or a device that takes a long time to respond to serial queries. 
     Check out the "GenericWidget Tricks and Features" section below for a tour of some of these, or refer to the 
     "Documentation" tab.
+
+*   Some physical devices are finnicky about receiving too many serial queries in a row, and want a delay between 
+    consecutive commands. This can be addressed with the ``send_via_queue`` method described below. Also, often 
+    the first polling cycle right after 'confirm' is pressed will generate a 'read error' before returning to normal. 
+    That happens because the confirm button is pressed between two queries, and the device gives a serial response 
+    to the command, interspersing an unexpected response between the two responses to the queries. ``send_via_queue`` can 
+    also fix this by ensuring that all queries get sent before any pending commands from a confirm press are sent.
 
 With all that in mind, here's the implementation of ``Valco2WayValve``, with some of the comments adjusted from the source code 
 for clarity and brevity. We just construct a widget, add an input and output field, and define how to send and parse serial 
@@ -244,6 +252,12 @@ class. They're buried in the documentation, so we will quickly highlight some he
     widget initializes its serial object as normal, and then every later widget shares the same object. The demo widget shows how 
     to initialize two MKS MFC widgets that share a serial port, and the ``MksMFCWidget`` class shows how to implement this with 
     calls to the ``GenericWidget`` constructor.
+*   The ``send_via_queue`` method lets you add a serial write to a queue of pending serial writes. It will be sent a 
+    specified delay in milliseconds after the previous command in the queue being sent (or,that many milliseconds 
+    after it was added to the queue, if the queue was empty to start). This lets you ensure that commands get sent in a 
+    certain order and that there's always a certain spacing between commands without needing to use tkinter's ``after`` method. 
+    Note that it doesn't work super well with widgets that share serial with other widgets; the order in which things get 
+    sent from the queue can get scrambled.
 
 Using Serial Emulators for Offline Testing
 **********************************************

@@ -63,9 +63,11 @@ class GenericWidget:
         
         if not no_serial:
             # Labels associated with serial communications
-            self.serial_menu_label = Label(self.frame,text="Select Serial Port: ")
             if not self.serial_shared:
-                self.serial_menu_label.grid(row=1,column=0)
+                self.serial_menu_label = Label(self.frame,text="Select Serial Port: ")
+            else:
+                self.serial_menu_label = Label(self.frame,text="Serial Shared With: ")
+            self.serial_menu_label.grid(row=1,column=0)
             self.serial_readout_label = Label(self.frame,text="Connection status: ")
             self.serial_readout_label.grid(row=2,column=0)
             # Declare the variables that run the serial port
@@ -76,9 +78,11 @@ class GenericWidget:
             self.serial_status.set("Not connected.")
         
             # Add and locate all of the functional serial widgets
-            self.serial_menu = OptionMenu(self.frame, self.serial_selected, *self.serial_options)
             if not self.serial_shared:
-                self.serial_menu.grid(row=1,column=1,sticky='nesw')
+                self.serial_menu = OptionMenu(self.frame, self.serial_selected, *self.serial_options)
+            else:
+                self.serial_menu = Label(self.frame,text=str(self.widget_to_share_serial_with.nickname))
+            self.serial_menu.grid(row=1,column=1,sticky='nesw')
             self.serial_readout = Label(self.frame,textvariable=self.serial_status)
             self.serial_readout.grid(row=2,column=1,sticky='nesw')
 
@@ -153,8 +157,8 @@ class GenericWidget:
         :type field_type: str
         :param name: The name of the field, which will be used to identify it for automation and for data logging
         :type name: str
-        :param label: The text label that will appear to the left of the field. This may differ from the name if you want to include units or abbreviate the label; e.g., the name might be 'Temperature' and the label might be 'Temp. (C)'.
-        :type labe: str
+        :param label: The text label that will appear to the left of the field. This may differ from the name if you want to include units or abbreviate the label; e.g., the name might be 'Temperature' and the label might be 'Temp. (C)'. If this argument is '' (an empty string), no label is added.
+        :type label: str
         :param default_value: The starting value that appears in the field
         :type default_value: str
         :param options: The options in the dropdown option menu. Required if field_type is 'dropdown', ignored otherwise.
@@ -192,7 +196,8 @@ class GenericWidget:
         else:
             row = self.frame.grid_size()[1]
             col=0
-        label_to_add.grid(row=row,column=col,sticky='nesw')
+        if label!='':
+            label_to_add.grid(row=row,column=col,sticky='nesw')
         item_to_add.grid(row=row,column=col+1,sticky='nesw')
         # Add the stringvars to the dicts
         if name in self.attributes.keys():
@@ -236,7 +241,7 @@ class GenericWidget:
         :param which_field: The name of the field that will be greyed out.
         :type which_field: str
         """
-        self.attributes[which_field].configure(state='disabled')
+        self.field_gui_objects[which_field][1].configure(state='disabled')
 
     def enable_field(self, which_field):
         """Un-grey out an input field that had previously been greyed out, allowing it to be interacted with again.
@@ -244,7 +249,7 @@ class GenericWidget:
         :param which_field: The name of the field to re-enable.
         :type which_field: Str
         """
-        self.attributes[which_field].configure(state='normal')
+        self.field_gui_objects[which_field][1].configure(state='normal')
 
     def move_confirm_button(self,row,column):
         """Move the confirm button, which is automatically placed when using the add_field method to add an input field.
@@ -278,9 +283,11 @@ class GenericWidget:
     def open_serial(self):
         """Method executed when serial is opened. Calls open_serial_query and then queues a call to open_serial_read after the necessary amount of time."""
         try:
+            self.sending_queue=[]
+            self.queue_delays=[]
             self._open_serial_query()
             self._update_cycle_counter=int(self.update_every_n_cycles*4/5)#Force an update the next cycle
-            time_to_wait = int(self.parent_dashboard._serial_control_widget.serial_polling_wait)*int(self.update_every_n_cycles*4/5)
+            time_to_wait = int((self.parent_dashboard._serial_control_widget.serial_polling_wait)*(int(self.update_every_n_cycles*4/5)+0.5))
             self.parent_dashboard.get_tkinter_object().after(time_to_wait,lambda: self._open_serial_read())
         except Exception as e:
             print(traceback.format_exc())
@@ -297,7 +304,7 @@ class GenericWidget:
         # Open serial connection
         try:
             if (not self.parent_dashboard.use_serial_emulators) and (not self.no_serial) and (not self.serial_shared):
-                self.serial_object = serial.Serial(self.serial_selected.get(),timeout=0,baudrate=self.baudrate)
+                self.serial_object = serial.Serial(self.serial_selected.get(),baudrate=self.baudrate,timeout=0)
             elif self.no_serial:
                 pass
             elif self.serial_shared:
@@ -322,24 +329,24 @@ class GenericWidget:
             return
         try:
             handshake_success = self.read_serial()
-            if handshake_success==None:
-                print("In device '"+str(self.name)+"', on_serial_read returned None, not True or False. It should return True when a valid response is read to facilitate handshakes on startup.")
-                raise Exception("Handshake Failed")
-            if not handshake_success:
-                print("Handshake failed on: '"+str(self.name)+"'")
-                raise Exception("Handshake Failed")
-        except Exception as e:
-            if not self.no_serial:
-                self.serial_status.set("No device found.")
-                self.serial_object.close()
-                self.serial_object = None
-            handshake_success = False
-        try:
+            if handshake_success is True:
+                print("Handshake successful on '"+str(self.name)+"'")
+            else:
+                if handshake_success is None:
+                    print("In device '"+str(self.name)+"', on_serial_read returned None. It should return True, False, or a string error message.")
+                elif handshake_success is False:
+                    print("Handshake failed on '"+str(self.name)+"'")
+                else:
+                    print("Handshake failed on '"+str(self.name)+"' with message: "+str(handshake_success))
+                if not self.no_serial:
+                    self.serial_status.set("No device found.")
+                    self.serial_object.close()
+                    self.serial_object = None
             self.on_serial_open(handshake_success)
-            if handshake_success and not self.no_serial:
+            if handshake_success is True and not self.no_serial:
                 self.serial_status.set("Connected.")
         except Exception as e:
-            print("Error in user-defined on_serial_open function in '"+str(self.name)+"': ")
+            print("Error in user-defined on_serial_read or on_serial_open function in '"+str(self.name)+"': ")
             print(traceback.format_exc())
 
     def query_serial(self):
@@ -397,6 +404,37 @@ class GenericWidget:
             print("Error in user-defined on_serial_close function in '"+str(self.name)+"': ")
             print(traceback.format_exc())
 
+    def _update_queue(self):
+        """Internal method that sends the next message in a serial write queue and tees up the next call to itself after the specified delay."""
+        try:
+            self.serial_object.write(self.sending_queue[0])
+        except Exception as e:
+            self.sending_queue=[]
+            self.queue_delays=[]
+            return #Serial object has closed in the meantime
+        self.sending_queue.pop(0)
+        self.queue_delays.pop(0)
+        if len(self.sending_queue)!=0:
+            self.parent_dashboard.get_tkinter_object().after(self.queue_delays[0],lambda: self._update_queue())
+
+    def send_via_queue(self,text,delay):
+        """Add a message to the outgoing serial queue, to be sent a given delay after the next-most-recent message in the queue is sent. 
+        If the queue is empty, the message gets sent after the given delay relative to when it was added to the queue. 
+        If the widget is sharing serial with another widget, the message gets added to the parent widget's serial queue. 
+        Note however that this doesn't work super well with widgets that share serial; queries' orders can get scrambled.
+        
+        :param text: The message to send to serial, as ascii-encoded bytes
+        :type text: bytes
+        :param delay: The delay after which to send the text, in milliseconds
+        :type column: int
+        """
+        if self.serial_shared:
+            self.widget_to_share_serial_with.send_via_queue(text,delay)
+        self.sending_queue.append(text)
+        self.queue_delays.append(delay)
+        if len(self.sending_queue)==1:
+            self.parent_dashboard.get_tkinter_object().after(delay,lambda: self._update_queue())
+
 # Methods related to serial emulators for testing
 
     def construct_serial_emulator(self):
@@ -424,8 +462,6 @@ class GenericWidget:
             return
         self.serial_readout_label.grid()
         self.serial_readout.grid()
-        if self.serial_shared:
-            return
         self.serial_menu_label.grid()
         self.serial_menu.grid()
 
@@ -435,8 +471,6 @@ class GenericWidget:
             return
         self.serial_readout_label.grid_remove()
         self.serial_readout.grid_remove()
-        if self.serial_shared:
-            return
         self.serial_menu_label.grid_remove()
         self.serial_menu.grid_remove()
 
@@ -446,14 +480,14 @@ class GenericWidget:
         :param new_serial_options: The new list of available serial ports
         :type new_serial_options: list
         """
-        if self.no_serial:
+        if self.no_serial or self.serial_shared:
             return
         self.serial_options = new_serial_options
+        prev_value=self.serial_selected.get()
         self.serial_menu.grid_forget()
         self.serial_menu = OptionMenu(self.frame, self.serial_selected, *self.serial_options)
-        if not self.serial_shared:
-            self.serial_menu.grid(row=1,column=1,sticky='nesw')
-        self.serial_selected.set(self.default_serial)
+        self.serial_menu.grid(row=1,column=1,sticky='nesw')
+        self.serial_selected.set(prev_value)
     
     def get_frame(self):
         """Get the tkinter frame on which this object is drawn.

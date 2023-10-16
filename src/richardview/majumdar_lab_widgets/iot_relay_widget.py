@@ -2,6 +2,7 @@ import numpy as np
 
 from .. import generic_widget
 from .. import generic_serial_emulator
+import time
 
 class IotRelayWidget(generic_widget.GenericWidget):
     """ Widget for using an Arduino to control a Digital Loggers Internet of Things (IoT) Relay, like this: https://www.digital-loggers.com/iot2.html .
@@ -9,12 +10,13 @@ class IotRelayWidget(generic_widget.GenericWidget):
 
     The arduino is expected to control the IoT relay with a digital output pin and to read serial commands using its built-in USB connection. 
     An arduino nano works well; these typically use mini-B USB connections. The arduino ground and digital output pin get connected to the green connector on the side of the IoT relay. 
-    Commands to the arduino are broken up by carriage return and newline characters. The arduino should turn on the IoT relay when the command 'On' is received 
-    and turn it off when the command 'Off' is received. Additionally, when the command 'Q' for query is received, it should reply with its status ('On' or 'Off') 
+    Commands to the arduino are broken up by carriage return and newline characters. The arduino should turn on the IoT relay when the command '1' is received 
+    and turn it off when the command '0' is received. Additionally, when the command 'Q' for query is received, it should reply with its status ('1' or '0') 
     followed by a newline or carriage return character.\n
 
     A suitable arduino sketch (program) to control the IoT relay can quickly be written by analogy to this Arduino forum post: https://forum.arduino.cc/t/serial-commands-to-activate-a-digital-output/49036/3
-
+    A working .ino sketch is also available in the majumdar_lab_widgets source code file on this project's Github.
+    
     :param parent_dashboard: The dashboard object to which this device will be added
     :type parent_dashboard: richardview.dashboard.RichardViewDashboard
     :param name: The name that the widget will be labeled with, and under which its data will be logged, e.g. "Methane Mass Flow Controller"
@@ -29,9 +31,9 @@ class IotRelayWidget(generic_widget.GenericWidget):
     def __init__(self,parent_dashboard,name,nickname,default_serial_port):
         """ Constructor for a Digital Loggers IoT relay controller widget."""
         # Initialize the superclass with most of the widget functionality
-        super().__init__(parent_dashboard,name,nickname,'#DD88DD',default_serial_port=default_serial_port,baudrate=9600)
+        super().__init__(parent_dashboard,name,nickname,'#DD88DD',default_serial_port=default_serial_port,baudrate=115200)
         # Add a dropdown field
-        self.mode_options=['On','Off']
+        self.mode_options=['Off','On']
         self.add_field(field_type='dropdown', name='Status Selection',label='Selected Status: ',
                        default_value=self.mode_options[0], log=True, options=self.mode_options)
         # Add a readout field
@@ -44,36 +46,40 @@ class IotRelayWidget(generic_widget.GenericWidget):
         """If serial opened successfully, do nothing; if not, set readout to 'No Reading'
 
         :param success: Whether serial opened successfully, according to the return from the on_serial_read method.
-        :type success: bool
+        :type success: bool or str
         """
         # If handshake failed, set readout to No Reading
-        if not success:
+        if success is not True:
             self.set_field('Actual Status','No Reading')
-
+    
     def on_serial_query(self):
         """Send a query to the device asking whether it is currently on or off.
         """
-        self.get_serial_object().reset_input_buffer()
-        self.get_serial_object().write(b'Q\n')
+        self.send_via_queue(b'Q\n',0)
+        self.send_via_queue(b'Q\n',350)
+        # There's a weird issue where anytime you launch the program, the first response from the arduino is "" and needs
+        # to be ignored... sending the command twice fixes it.
 
     def on_serial_read(self):
-        """Parse the response from the previous serial query and update the display. Return True if valid and False if not.
+        """Parse the response from the previous serial query and update the display. Return True if valid and an error string if not.
 
-        :return: True if the response was of the expected format, False otherwise.
-        :rtype: bool
+        :return: True if the response was of the expected format, an error message otherwise.
+        :rtype: bool or str
         """
-        status = (self.get_serial_object().readline()).decode('ascii')
+        status = (self.serial_object.readline()).decode('ascii')
+        self.serial_object.reset_input_buffer()
         status = status.replace("\n","")
         status = status.replace("\r","")
-        if status=='On':
+        if status=='1':
             self.set_field('Actual Status','On')
             return True
-        elif status=='Off':
+        elif status=='0':
             self.set_field('Actual Status','Off')
             return True
         else:
             self.set_field('Actual Status','Read Error')
-            return False
+            fail_message=("Unexpected response received from IoT relay arduino: "+str(status))
+            return fail_message # An invalid response was read
 
     def on_serial_close(self):
         """When serial is closed, set all readouts to 'None'."""
@@ -84,9 +90,11 @@ class IotRelayWidget(generic_widget.GenericWidget):
         """
         selected = self.get_field('Status Selection')
         if selected=='On':
-            self.get_serial_object().write(b'On\r\n')
+            self.send_via_queue(b'1\n',50)
+            print("Turning on IoT relay: '"+self.nickname+"'")
         elif selected=='Off':
-            self.get_serial_object().write(b'Off\r\n')
+            self.send_via_queue(b'0\n',50)
+            print("Turning off IoT relay: '"+self.nickname+"'")
 
     def construct_serial_emulator(self):
         """Get the serial emulator to use when we're testing in offline mode.
@@ -110,7 +118,7 @@ class IoTRelaySerialEmulator(generic_serial_emulator.GenericSerialEmulator):
     def readline(self):
         """Reads a response as if this were a Pyserial Serial object. The only time readline is called is to check the response to a status query."""
         v = np.random.randint(0,20)
-        v = 'On' if v>10 else 'Off'
+        v = '1' if v>10 else '0'
         v = str(v)+'\r\n'
         return v.encode('ascii')
 

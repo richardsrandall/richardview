@@ -31,10 +31,10 @@ class OmegaUSBUTCWidget(generic_widget.GenericWidget):
         """If serial opened successfully, do nothing; if not, set readouts to 'No Reading'
 
         :param success: Whether serial opened successfully, according to the return from the on_serial_read method.
-        :type success: bool
+        :type success: bool or str
         """
         # If handshake failed, set readout to 'none'
-        if not success:
+        if success is not True:
             self.set_field('Temperature','No Reading')
 
     def on_serial_query(self):
@@ -43,10 +43,10 @@ class OmegaUSBUTCWidget(generic_widget.GenericWidget):
         self.get_serial_object().write(b'C\r')
 
     def on_serial_read(self):
-        """Parse the responses from the previous serial query and update the display. Return True if valid and False if not.
+        """Parse the responses from the previous serial query and update the display. Return True if valid and and error string if not.
 
-        :return: True if the response was of the expected format, False otherwise.
-        :rtype: bool
+        :return: True if the response was of the expected format, an error string otherwise.
+        :rtype: bool or str
         """
         try:
             status = self.get_serial_object().readline()
@@ -62,8 +62,8 @@ class OmegaUSBUTCWidget(generic_widget.GenericWidget):
             return True # A valid response from the TC was read
         except Exception as e:
             self.set_field('Temperature','Read Error')
-            print(e)
-            return False # An invalid response was read
+            fail_message=("Unexpected response received from thermocouple reader: "+str(status))
+            return fail_message # An invalid response was read
 
     def on_serial_close(self):
         """When serial is closed, set all readouts to 'None'."""

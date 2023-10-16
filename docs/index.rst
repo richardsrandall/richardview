@@ -20,7 +20,9 @@ elements called *Widgets* that represent a physical device or a group of functio
 once they are created. Writing automation scripts, configuring new dashboards from existing widgets, and defining new widgets require as little coding as we 
 could manage.
 
-The project can be installed using pip from PyPI_ and its source code is available on Github_.
+The project can be installed using pip from PyPI_ and its source code is available on Github_. While it is in early development, 
+it may be best to download and use the source from Github, since the author can then quickly send you patches for any use-case-specific 
+bugs that become apparent. See the Overview page.
 
 .. _PyPI: https://pypi.org/project/richardview/
 .. _Github: https://github.com/richardsrandall/richardview

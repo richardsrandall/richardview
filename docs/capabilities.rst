@@ -29,6 +29,8 @@ Currently, RichardView comes with widgets for the following devices:
 * Digital Loggers IoT Relay 2, which can give on/off control of many types of AC devices
 * Omega USB-UTC Thermocouple Adapter
 * VICI Valco Automatic 2-Way Selector Valve
+* VICI Valco Automatic 8-Way Selector Valve
+* SRI 8610C Gas Chromatographs
 
 We hope that RichardView users will write and share widgets to control their own devices, eventually creating an ecosystem 
 of available widgets that others can use. 

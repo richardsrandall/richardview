@@ -28,7 +28,8 @@ class PicarroCRDWidget(generic_widget.GenericWidget):
     def __init__(self,parent_dashboard,name,nickname,default_serial_port):
         """ Constructor for a Picarro cavity ringdown spectrometer widget."""
         # Initialize the superclass with most of the widget functionality
-        super().__init__(parent_dashboard,name,nickname,'#c32148',default_serial_port=default_serial_port,baudrate=19200)
+        super().__init__(parent_dashboard,name,nickname,'#c32148',
+                         default_serial_port=default_serial_port,baudrate=19200,update_every_n_cycles=3)
         # Add some readout fields
         self.add_field(field_type='text output', name='CH4 (ppm)',
                        label='CH4 (ppm): ', default_value='No Reading', log=True)
@@ -36,14 +37,15 @@ class PicarroCRDWidget(generic_widget.GenericWidget):
                        label='CO2 (ppm): ', default_value='No Reading', log=True)
         self.add_field(field_type='text output', name='H2O (vol %)',
                        label='Water (vol %): ', default_value='No Reading', log=True)
+        self.num_fails=0
 
     def on_serial_open(self,success):
         """If serial opened successfully, do nothing; if not, set readouts to 'No Reading'
 
         :param success: Whether serial opened successfully, according to the return from the on_serial_read method.
-        :type success: bool
+        :type success: bool or str
         """
-        if not success:
+        if success is not True:
             for field in ('CH4 (ppm)','CO2 (ppm)','H2O (vol %)'):
                 self.set_field(field,'No Reading')
 
@@ -51,17 +53,17 @@ class PicarroCRDWidget(generic_widget.GenericWidget):
         """We would normally send a serial query, but we are just listening for the Picarro's updates that are automatically sent once per second, so no query is required.
         """
         pass
-        #This is the command we'd use if the Picarro were in 'respond to queries' mode. #self.get_serial_object().write(b'_Meas_GetConcEx\r')
 
     def on_serial_read(self):
-        """Parse the latest message from the Picarro and update the display. Return True if valid and False if not.\n
+        """Parse the latest message from the Picarro and update the display. Return True if valid and an error string if not.\n
         Note that sometimes we get unlucky with the timing and a valid Picarro message gets chopped off halfway through and fails to parse. So occasionally we get a 'read error' 
         when the instrument is behaving just fine. This is easy to fix in data post-processing, but we might also consider fixing it by switching to a query-response setup.
 
-        :return: True if the response was of the expected format, False otherwise.
-        :rtype: bool
+        :return: True if the response was of the expected format, an error string otherwise.
+        :rtype: bool or str
         """
         try:
+            self.get_serial_object().readline()
             resp = str(self.get_serial_object().readline())
             self.get_serial_object().reset_input_buffer()
             values = resp.split()
@@ -73,12 +75,15 @@ class PicarroCRDWidget(generic_widget.GenericWidget):
             self.set_field('CH4 (ppm)',ch4)
             self.set_field('CO2 (ppm)',co2)
             self.set_field('H2O (vol %)',h2o)
+            self.num_fails=0
             return True # A valid response from the Picarro was read
         except Exception as e:
-            for field in ('CH4 (ppm)','CO2 (ppm)','H2O (vol %)'):
-                self.set_field(field,'Read Error')
-            print(e)
-            return False # An invalid response was read
+            self.num_fails+=1
+            if self.num_fails>3:
+                for field in ('CH4 (ppm)','CO2 (ppm)','H2O (vol %)'):
+                    self.set_field(field,'Read Error')
+            fail_message=("Unexpected response received from Picarro CRD: "+str(resp))
+            return fail_message # An invalid response was read
 
     def on_serial_close(self):
         """When serial is closed, set all readouts to 'None'."""

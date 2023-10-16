@@ -141,9 +141,10 @@ class DataLoggingWidget:
                 new_line+=","
                 new_line+=str(all_data[widget.nickname][attribute])
         new_line+="\n"
-        self.open_file.close()
-        self.open_file = open(self.filename,'a')
+        #self.open_file.close()
+        #self.open_file = open(self.filename,'a')
         self.open_file.write(new_line)
+        self.open_file.flush()
 
     def _choose_destination(self):
         """Open a dialog window to let the user select where the logfile should be saved."""

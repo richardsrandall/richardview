@@ -110,6 +110,11 @@ class RichardViewDashboard:
         if not self.window_resizeable:
             self.get_tkinter_object().after(100, lambda: self.get_tkinter_object().resizable(False,False))
         self._serial_control_widget._update_serial_ports()
+        def on_close():
+            if self.serial_connected:
+                self._serial_control_widget._toggle_serial_connected()
+            self.get_tkinter_object().destroy()    
+        self.get_tkinter_object().protocol("WM_DELETE_WINDOW", on_close)
         self.get_tkinter_object().mainloop()
 
     def get_field(self,target_widget_nickname, target_field):
