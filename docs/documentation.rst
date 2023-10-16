@@ -137,9 +137,16 @@ The ''Valco2WayValveWidget'' class
     :private-members:
     :show-inheritance:
 
+The ''Valco8WayValveWidget'' class
+----------------------------------
+.. autoclass:: richardview.majumdar_lab_widgets.valco_8_way_valve_widget.Valco8WayValveWidget
+    :members:
+    :private-members:
+    :show-inheritance:
+
 The ''SRIGasChromatographFIDWidget'' class
 -----------------------------------------------
-.. autoclass:: richardview.majumdar_lab_widgets.sri_gc_fid_Widget.SRIGasChromatographFIDWidget
+.. autoclass:: richardview.majumdar_lab_widgets.sri_gc_fid_widget.SRIGasChromatographFIDWidget
     :members:
     :private-members:
     :show-inheritance:
