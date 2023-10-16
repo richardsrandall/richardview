@@ -1,6 +1,6 @@
 
 Command for Sphinx build:
-(cd /Users/work/Documents/GitHub/richardview; sphinx-apidoc-e -o docs src/richardview --separate --private; cd docs; make html)
+(cd /Users/work/Documents/GitHub/richardview; sphinx-apidoc -e -o docs src/richardview --separate --private; cd docs; make html)
 
 Cheat sheet for pushing an update to PyPI:
 Command to get here: cd /Users/work/Documents/GitHub/richardview
