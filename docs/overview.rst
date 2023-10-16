@@ -55,7 +55,7 @@ This package can be installed using pip, as follows:
 
 .. code-block::
     
-    python -m pip install pyserial
+    python -m pip install richardview
 
 However, since we are still in a very early stage of development, situations may arise where a bug arises and it's helpful to just 
 email me (the author) and have me quickly email back a fix to one of the source files, to later be incorporated in a future version. 
