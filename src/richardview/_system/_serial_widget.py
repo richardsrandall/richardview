@@ -47,6 +47,7 @@ class SerialWidget:
         """Toggle whether serial communications are active. Prompt all widgets to open or close serial connections. 
         Grey out and change text on the appropriate GUI buttons while serial communications are active."""
         if self.parent.serial_connected:
+            # Close the serial connections
             self.connect_serial_text.set("Start polling devices")
             self.parent.serial_connected = False
             self.update_ports_button.configure(state='normal')
@@ -54,9 +55,15 @@ class SerialWidget:
                 obj.close_serial()
             print("All connections closed.")
         else:
+            # Open the serial connections
             self.connect_serial_text.set("Stop polling devices")
             self.parent.serial_connected = True
             self.update_ports_button.configure(state='disabled')#So you can't update serials while serial is polling
+            for obj in self.parent.all_widgets:
+                try:
+                    obj._call_build_serial_object() # Opens the serial object for each widget
+                except Exception:
+                    print(traceback.format_exc())#Print a full error report
             for obj in self.parent.all_widgets:
                 try:
                     obj.open_serial()

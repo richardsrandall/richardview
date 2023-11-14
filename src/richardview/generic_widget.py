@@ -23,7 +23,7 @@ class GenericWidget:
     :type no_serial: bool, optional
     :param default_serial_port: The name of the default selected serial port, e.g. 'COM9'. Required unless no_serial is True.
     :type default_serial_port: str, optional
-    :param baudrate: The baud rate of the serial connection, as an integer, e.g. 19200. Required unless no_serial is True.
+    :param baudrate: The baud rate of the serial connection, as an integer, e.g. 19200. Required unless no_serial is True or build_serial_object is overridden.
     :type baudrate: int, optional
     :param widget_to_share_serial_with: A widget whose Pyserial Serial object this widget will share, rather than creating its own. Useful if multiple widgets need to share the same serial port. Defaults to None.
     :type widget_to_share_serial_with: richardview.generic_widget.GenericWidget, optional
@@ -42,7 +42,7 @@ class GenericWidget:
         # Unpack kwargs
         no_serial = kwargs['no_serial'] if ('no_serial' in kwargs.keys()) else False
         self.default_serial = kwargs['default_serial_port'] if not no_serial else None
-        self.baudrate = kwargs['baudrate'] if not no_serial else None
+        self.baudrate = kwargs['baudrate'] if ('baudrate' in kwargs.keys()) else None
         update_every_n_cycles = kwargs['update_every_n_cycles'] if ('update_every_n_cycles' in kwargs.keys()) else 1
         widget_to_share_serial_with = kwargs['widget_to_share_serial_with'] if ('widget_to_share_serial_with' in kwargs.keys()) else None
 
@@ -106,6 +106,47 @@ class GenericWidget:
         for k in self.values_to_log.keys():
             out[k]=self.values_to_log[k].get()
         return out
+    
+    def _call_build_serial_object(self):
+        """This function just calls get_serial_object and assigns its value to self.serial_object"""
+        self.serial_object = None
+        # Make cosmetic changes before any return's get invoked:
+        if not self.no_serial:
+            print("Opening "+self.serial_selected.get()+" for \""+self.name+"\"")
+            self.serial_menu.configure(state='disabled')
+        try:
+            self.serial_object = self.build_serial_object()
+        except Exception as e:
+            print("Error establishing serial connection to "+self.serial_selected.get()+":")
+            print(e)
+            self.serial_object=None
+        if not self.no_serial and self.serial_object is None: #Serial object being none is taken as a proxy for failure
+            self.on_serial_open(False)
+            self.serial_status.set("Connection Failed")
+
+    def build_serial_object(self):
+        """This function constructs whatever object represents a serial connection. By default, it returns None if self.no_serial==True, 
+        the shared serial object if self.serial_shared==True, a serial emulator if self.parent_dashboard.use_serial_emulators==True, 
+        and otherwise a newly-created Pyserial Serial object with default parameters. However, you can 
+        overwrite this function to return a custom serial object (e.g. a PyModbus or MinimalModbus object). The returned object will be stored in self.serial_object.
+        
+        It's important to actually return something if the connection was initialized successfully, 
+        since a number of other methods interpret self.serial_object==None to mean that serial is disconnected or failed to open. If an exception is raised in 
+        this method, it'll be handled the same way as a failed handshake, i.e. by calling self.on_serial_open(success=False) and printing the error to console.
+
+        :return: Some kind of serial object for the widget to store and use
+        :rtype: Serial, None, or other Object
+        """
+        # Open serial connection
+        if (not self.parent_dashboard.use_serial_emulators) and (not self.no_serial) and (not self.serial_shared):
+            return serial.Serial(self.serial_selected.get(),baudrate=self.baudrate,timeout=0)
+        elif self.no_serial:
+            return None
+        elif self.serial_shared:
+            return self.widget_to_share_serial_with.get_serial_object()
+        elif self.parent_dashboard.use_serial_emulators:
+            return self.construct_serial_emulator()
+        # It's ok if this raises an error, as it'll get handled in _build_serial_object
 
     def on_serial_open(self,success):
         """This function is called whenever serial communication is opened, after the serial connection has been queried and 
@@ -119,6 +160,27 @@ class GenericWidget:
         :type success: bool
         """
         pass
+
+    def on_handshake_query(self): #This function gets called whenever the widget makes the first query to its serial port
+        """This function gets called whenever the widget makes the first query to its serial port. It should send a query whose response on_handshake_read() will parse. 
+        By default, it just sends a normal query, but this can be overridden with a custom handshake."""
+        print("Device '"+self.name+"' has no handshake defined; just using a standard query/read cycle. Handshake will be deemed a success if read() returns True or nothing, and a failure if read() returns an error message or raises an exception.")
+        self.on_serial_query()
+
+    def on_handshake_read(self): #This function gets called a little while after on_handshake_query
+        """This function gets called a little while after on_handshake_query to parse the device's response.
+        By default, it just does a normal read, but this can be overridden to parse a custom handshake's response. 
+        If used as the handshake read (default behavior), this function should return True or nothing if the response is valid and return a string error message or raise an exception 
+        if the response was invalid. Returning nothing is interpreted as a successful handshake.
+        If on_handshake_read is overridden in the subclass implementation, it's OK for this to return None.
+        
+        :return: True if the handshake succeeded, False or an error string if not
+        :rtype: bool, str, or None"""
+        result = self.on_serial_read()
+        if result is None:
+            return True
+        else:
+            return result
 
     def on_serial_query(self): #This function gets called whenever the device queries its serial port
         """This function gets called once every polling interval when the dashboard prompts each device to query its serial connection for updates. 
@@ -285,7 +347,7 @@ class GenericWidget:
         try:
             self.sending_queue=[]
             self.queue_delays=[]
-            self._open_serial_query()
+            self.on_handshake_query()
             self._update_cycle_counter=int(self.update_every_n_cycles*4/5)#Force an update the next cycle
             time_to_wait = int((self.parent_dashboard._serial_control_widget.serial_polling_wait)*(int(self.update_every_n_cycles*4/5)+0.5))
             self.parent_dashboard.get_tkinter_object().after(time_to_wait,lambda: self._open_serial_read())
@@ -296,30 +358,6 @@ class GenericWidget:
     def _open_serial_query(self):
         """Opens the connection, if needed, or constructs a serial emulator. Calls query_serial for the first time."""
         self._update_cycle_counter=-1#Ensure that a query gets made the first time this method runs
-        self.serial_object = None
-        # Make cosmetic changes before any return's get invoked:
-        if not self.no_serial:
-            print("Opening "+self.serial_selected.get()+" for \""+self.name+"\"")
-            self.serial_menu.configure(state='disabled')
-        # Open serial connection
-        try:
-            if (not self.parent_dashboard.use_serial_emulators) and (not self.no_serial) and (not self.serial_shared):
-                self.serial_object = serial.Serial(self.serial_selected.get(),baudrate=self.baudrate,timeout=0)
-            elif self.no_serial:
-                pass
-            elif self.serial_shared:
-                self.serial_object = self.widget_to_share_serial_with.get_serial_object()
-            elif self.parent_dashboard.use_serial_emulators:
-                self.serial_object = self.construct_serial_emulator()
-        except Exception as e:
-            print("Error connecting to "+self.serial_selected.get()+":")
-            print(e)
-            if not self.no_serial:
-                self.serial_object = None
-                self.serial_status.set("Connection Failed")
-            self.on_serial_open(False)
-            return
-        # Do the handshake with the device
         self.query_serial()
 
     def _open_serial_read(self):
@@ -328,13 +366,14 @@ class GenericWidget:
         if self.serial_object == None and (not self.no_serial):
             return
         try:
-            handshake_success = self.read_serial()
+            handshake_success = self.on_handshake_read()
+        except Exception as e:
+            handshake_success = str(e)
+        try:
             if handshake_success is True:
                 print("Handshake successful on '"+str(self.name)+"'")
             else:
-                if handshake_success is None:
-                    print("In device '"+str(self.name)+"', on_serial_read returned None. It should return True, False, or a string error message.")
-                elif handshake_success is False:
+                if handshake_success is False:
                     print("Handshake failed on '"+str(self.name)+"'")
                 else:
                     print("Handshake failed on '"+str(self.name)+"' with message: "+str(handshake_success))
@@ -346,7 +385,7 @@ class GenericWidget:
             if handshake_success is True and not self.no_serial:
                 self.serial_status.set("Connected.")
         except Exception as e:
-            print("Error in user-defined on_serial_read or on_serial_open function in '"+str(self.name)+"': ")
+            print("Error in user-defined on_serial_open function in '"+str(self.name)+"': ")
             print(traceback.format_exc())
 
     def query_serial(self):
@@ -390,8 +429,11 @@ class GenericWidget:
     def close_serial(self):
         """Closes the serial object, if needed, and returns the GUI fields to their default non-connected states. Executes on_serial_close, which is hopefully implemented in a subclass."""
         if (self.serial_object != None) and not (self.serial_shared):
-            self.serial_object.close()
-            self.serial_object = None
+            try:
+                self.serial_object.close()
+                self.serial_object = None
+            except Exception:
+                pass
             print("Closing "+self.serial_selected.get()+" for \""+self.name+"\"")
         if not self.no_serial:
             self.serial_menu.configure(state='normal')

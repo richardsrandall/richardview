@@ -6,6 +6,9 @@ from ._system._serial_widget import SerialWidget
 from ._system._automation_widget import AutomationWidget
 from ._system._data_logging_widget import DataLoggingWidget
 
+# Asyncio
+from async_tkinter_loop import async_mainloop
+
 class RichardViewDashboard:
     """ A Dashboard is our term for a GUI window containing various 'widgets'. A standalone program should initialize, configure, and run each dashboard. 
     One dashboard may contain many widgets, each representing a physical device or some other functionality.\n
@@ -33,7 +36,7 @@ class RichardViewDashboard:
         self.name = dashboard_name
         root = Tk()
         self.root = root
-        window_title="RichardView 0.1.0 Alpha"
+        window_title="RichardView 0.1.8 Alpha"
         self.title = window_title
         root.title(window_title)
         self.use_serial_emulators = use_serial_emulators
@@ -106,7 +109,8 @@ class RichardViewDashboard:
         self.all_interlocks.append(fn)
     
     def start(self):
-        """Launch the dashboard by starting the Tkinter main loop. This function blocks until the dashboard is closed."""
+        """Launch the dashboard by starting the Tkinter main loop as an asynchronous process using the async_tkinter_loop package. 
+        This function blocks until the dashboard is closed."""
         if not self.window_resizeable:
             self.get_tkinter_object().after(100, lambda: self.get_tkinter_object().resizable(False,False))
         self._serial_control_widget._update_serial_ports()
@@ -115,7 +119,7 @@ class RichardViewDashboard:
                 self._serial_control_widget._toggle_serial_connected()
             self.get_tkinter_object().destroy()    
         self.get_tkinter_object().protocol("WM_DELETE_WINDOW", on_close)
-        self.get_tkinter_object().mainloop()
+        async_mainloop(self.get_tkinter_object())
 
     def get_field(self,target_widget_nickname, target_field):
         """Get the current value of a certain field of a certain widget. The field must have been created with the 

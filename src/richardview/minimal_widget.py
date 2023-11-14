@@ -34,6 +34,10 @@ class MinimalWidget:
         """
         pass
 
+    def _call_build_serial_object(self):
+        """ This method must be implemented in all widgets; in this case, it is empty."""
+        pass
+
     def open_serial(self):
         """ This method must be implemented in all widgets; in this case, it is empty."""
         pass

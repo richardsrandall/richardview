@@ -47,6 +47,7 @@ class AutomationWidget:
         self.script_stop_button = Button(self.frame,text="    Stop    ",command=self._stop_automated_tasks)
         self.script_stop_button.grid(row=3,column=3,sticky='nesw')
         Label(self.frame,text="        ").grid(row=5,column=3,sticky='nesw')
+        self.skip_button = Button(self.frame, text='Skip', command=self._skip_await)
 
         # Define some automation variables
         self.delay_for_loading = 0 # Keep track of accumulated delay when using schedule_delay function
@@ -59,6 +60,11 @@ class AutomationWidget:
         self.pause_tasks = True
         self._buttons_stopped_mode()
         self.end_time = 0
+        self.awaiting = False
+        self.await_condition_displayed = False
+        self.await_error_displayed = False
+        self.latest_await_index = -1
+        self.skip_await_flag=False
 
     def get_frame(self):
         """Get the tkinter frame on which this object is drawn.
@@ -73,6 +79,7 @@ class AutomationWidget:
         
         :return: The Dashboard to which this widget was added
         :rtype: richardview.dashboard.Dashboard"""
+        return self.parent
 
     def schedule_delay(self, delay):
         """This function is meant to be called in automation scripts. It causes a delay before a subsequent call to schedule_function 
@@ -154,6 +161,63 @@ class AutomationWidget:
         if not (confirm_function is None):
             confirm_function()
 
+    def schedule_await_condition(self,condition,console_message=None):
+        """This function schedules the script to 'await' a certain condition, such as a thermocouple temperature dropping below a certain value, 
+        before allowing the automation script to proceed. Data logging and GUI functions proceed in the meantime. While the script is awaiting 
+        the condition, a 'Skip' button also becomes available in the automation control widget. 
+        
+        :param condition: A function that takes a Dashboard object as its only argument and returns True if the condition to proceed is met and False if not. See tutorials for an example.
+        :type target_widget: function
+        :param console_message: A message that's printed to the console as user-legible shorthand for the condition being awaited, e.g. 'Temperature < 100C'
+        :type target_widget: str
+        """
+        self.latest_await_index = len(self.delay_list)
+        self.schedule_function(lambda dashboard: dashboard._automation_control_widget._schedule_await_condition_helper(condition,console_message))
+
+    def _schedule_await_condition_helper(self,condition,console_message):
+        """This is a function whose execution is scheduled by schedule_await_condition. 
+        It checks whether the awaited condition is met. If so, it lets the automation script proceed. 
+        If not, or if an error is raised, it causes the automation panel to check again during the next 
+        automation update cycle (usually 1 second later). It does various cosmetic things to manage the 
+        'time to next step' and 'time remaining' readouts, as well as showing and hiding the 'skip' button.
+        
+        :param condition: A function that takes a Dashboard object as its only argument and returns True if the condition to proceed is met and False if not.
+        :type target_widget: function
+        :param console_message: A message that's printed to the console as user-legible shorthand for the condition being awaited, e.g. 'Temperature < 100C'
+        :type target_widget: str
+        """
+        try:
+            result = condition(self.get_parent_dashboard())
+            self.await_error_displayed = False
+        except Exception as e:
+            result=False
+            if not self.await_error_displayed: # Stop the error from getting printed over and over again
+                print("Error in user-provided script await condition: ")
+                traceback.print_exc()
+                print("Treating it as 'False'; script will not advance.")
+            self.await_error_displayed = True
+        if result or self.skip_await_flag:
+            self.awaiting = False
+            self.await_condition_displayed = False
+            self.skip_await_flag = False
+            if result:
+                print("Automation proceeding with condition satisfied: "+console_message)
+            else:
+                print("Automation proceeding with 'Skip' button press.")
+            return
+        else:
+            self.awaiting = True
+            if not self.await_condition_displayed:
+                print("Automation awaiting condition to proceed: "+console_message)
+            self.await_condition_displayed = True
+            self.automation_index-=1
+            self.absolute_time_list = list(x+1 for x in self.absolute_time_list)
+            self.end_time+=1
+
+    def _skip_await(self):
+        """This function gets called when the 'skip await' button gets pressed. It just sets a flag that _schedule_await_condition_helper reads."""
+        self.skip_await_flag = True
+
     # Button handling methods
 
     def _update_tasks(self):
@@ -185,6 +249,7 @@ class AutomationWidget:
                 self._buttons_stopped_mode()
                 self.automation_running_label.set("(finished!)")
                 self.lines_loaded.set("0/"+str(len(self.delay_list))+" steps done.")
+                self.awaiting = False
                 print("Script successfully finished.")
                 return
             else:
@@ -196,8 +261,16 @@ class AutomationWidget:
         else:
             self.root.after(1000,self._update_tasks)
             self.time_to_go = int(round(float(self.end_time)-time.time()))
-        self.step_countdown_readout.set(str(timedelta(seconds=self.seconds_to_next_task)))
-        self.time_to_go_readout.set(str(timedelta(seconds=self.time_to_go))) # Updatecounters
+        if not self.awaiting: # If we're not in an awaiting state
+            self.step_countdown_readout.set(str(timedelta(seconds=self.seconds_to_next_task)))
+            self.skip_button.grid_remove()
+        else:
+            self.step_countdown_readout.set("(awaiting condition)")
+            self.skip_button.grid(row=4,column=3,sticky='nesw')
+        if self.automation_index<=self.latest_await_index: #If there are still 'awaits' queued
+            self.time_to_go_readout.set("≥"+str(timedelta(seconds=(self.time_to_go-1)))) 
+        else:
+            self.time_to_go_readout.set(str(timedelta(seconds=self.time_to_go)))
 
     def _start_automated_tasks(self):
         """Start an automation script. Generates a list of absolute times at which each action in the 
@@ -219,6 +292,10 @@ class AutomationWidget:
             rel_times.append(self.delay_list[i]+rel_times[i-1])
         self.absolute_time_list = [t+t0 for t in rel_times]
         self.end_time = self.absolute_time_list[len(self.absolute_time_list)-1]
+        # Flags for displaying wait conditions and errors
+        self.await_condition_displayed = False
+        self.await_error_displayed = False
+        self.skip_await_flag=False
         # Actually start
         self._buttons_running_mode()
         self.pause_tasks = False
@@ -229,7 +306,7 @@ class AutomationWidget:
         executed after starting the script. Sets GUI elements like '0/n steps done' and 'xx:xx:xx remaining'.\n
         
         Note that this method loads the contents of the automation file and calls exec() on it. This is obviously not secure; only use 
-        automation scripts whose authors you trues. exec() is called in a namespace with schedule_delay, schedule_action, and schedule_function 
+        automation scripts whose authors you trues. exec() is called in a namespace with schedule_delay, schedule_action, schedule_function, and schedule_await_condition 
         already defined as local variables for you to use.
         """
         # Reset everything
@@ -246,15 +323,17 @@ class AutomationWidget:
         self.time_to_go_readout.set(str(timedelta(seconds=self.time_to_go)))
         self.file_loaded.set("No file loaded.")
         self.lines_loaded.set("")
+        self.latest_await_index = -1
         # Hopefully these all get overwritten; above is just to cover our bases if there's an error.
         filename = fd.askopenfilename()
         f = str.split(filename,'/')
         f = f[len(f)-1] # We just want the file name to display, not its whole path
         script = open(filename).read()
         try:
-            exec(script,{}, #We only want certain special keywords in the namespace that is executed
+            exec(script, #We only want certain special keywords in the namespace that is executed
                  {'schedule_delay':self.schedule_delay, 'schedule_action':self.schedule_action,
-                  'schedule_function':self.schedule_function, 'get_dashboard':self.get_parent_dashboard})
+                  'schedule_function':self.schedule_function, 'get_dashboard':self.get_parent_dashboard,
+                  'schedule_await_condition':self.schedule_await_condition},{})
         except Exception as e:
             print(traceback.format_exc())
             messagebox.showinfo("","The script you loaded contains an error. See console for details.")
@@ -265,7 +344,10 @@ class AutomationWidget:
         self.time_to_go = sum(self.delay_list)
         self.seconds_to_next_task = 0 if (len(self.delay_list)==0) else self.delay_list[0]
         self.step_countdown_readout.set(str(timedelta(seconds=self.seconds_to_next_task)))
-        self.time_to_go_readout.set(str(timedelta(seconds=self.time_to_go)))
+        if self.automation_index<=self.latest_await_index: #If there are still 'awaits' queued
+            self.time_to_go_readout.set("≥"+str(timedelta(seconds=(self.time_to_go)))) 
+        else:
+            self.time_to_go_readout.set(str(timedelta(seconds=self.time_to_go)))
         print("Loaded "+filename)
 
     # Helper functions to enable/disable buttons
@@ -287,6 +369,7 @@ class AutomationWidget:
         self.step_countdown_readout.set(str(timedelta(seconds=self.seconds_to_next_task)))
         self.time_to_go_readout.set(str(timedelta(seconds=self.time_to_go)))
         self.lines_loaded.set("0/"+str(len(self.delay_list))+" steps done.")
+        self.awaiting = False
 
     def _buttons_running_mode(self):
         """Disable 'start' and 'load' buttons, turn frame green, add 'running' label."""
@@ -306,6 +389,7 @@ class AutomationWidget:
         self.script_stop_button.configure(state='normal')
         self.automation_running_label.set("(paused)")
         self.start_button_text.set("Resume")
+        self.skip_button.grid_remove()
         self.frame.configure(highlightbackground='yellow')
 
     def _buttons_stopped_mode(self):
@@ -316,4 +400,5 @@ class AutomationWidget:
         self.script_stop_button.configure(state='disabled')
         self.automation_running_label.set("(stopped)")
         self.start_button_text.set("Start")
+        self.skip_button.grid_remove()
         self.frame.configure(highlightbackground=self.main_color)

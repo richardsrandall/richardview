@@ -69,9 +69,9 @@ class PicarroCRDWidget(generic_widget.GenericWidget):
             values = resp.split()
             if len(values)!=7:
                 raise Exception('Bad response format.')
-            ch4 = str(round(float(values[2]),2))
+            ch4 = str(round(float(values[2]),4))
             h2o = str(round(float(values[3]),4))
-            co2 = str(round(float(values[4]),2))
+            co2 = str(round(float(values[4]),4))
             self.set_field('CH4 (ppm)',ch4)
             self.set_field('CO2 (ppm)',co2)
             self.set_field('H2O (vol %)',h2o)

@@ -85,18 +85,18 @@ def run_demo_dashboard():
     spice_1 = biw.SpicinessWidget(parent_dashboard=dashboard,
                                 name='Spice-O-Meter',
                                 nickname='Spice')
-    dashboard.add_widget(spice_1,row=3,column=2)
+    #dashboard.add_widget(spice_1,row=3,column=2)
 
-#    # GC widget
-#    gc_1 = mlw.SRIGasChromatographFIDWidget(parent_dashboard=dashboard,
-#                                 name='GC FID',
-#                                 nickname='GC FID',
-#                                 gas_labels=('CH4 (ppm)','CO2 (ppm)'),
-#                                 gas_columns=(10,15),
-#                                 calibration_functions={'Low':(lambda x: x*0.1,lambda x: x*0.1),
-#                                                        'Medium':(lambda x: x*0.05,lambda x: x*0.05),
-#                                                        'High':(lambda x: x*0.01,lambda x: x*0.01)})
-#    dashboard.add_widget(gc_1,row=3,column=2)
+    # GC widget
+    gc_1 = mlw.SRIGasChromatographFIDWidget(parent_dashboard=dashboard,
+                                 name='GC FID',
+                                 nickname='GC FID',
+                                 gas_labels=('CH4 (ppm)','CO2 (ppm)'),
+                                 gas_columns=(10,15),
+                                 calibration_functions={'Low':(lambda x: x*0.1,lambda x: x*0.1),
+                                                        'Medium':(lambda x: x*0.05,lambda x: x*0.05),
+                                                        'High':(lambda x: x*0.01,lambda x: x*0.01)})
+    dashboard.add_widget(gc_1,row=3,column=2)
 
     # Here's where you'd add interlocks, if you wanted any
 
