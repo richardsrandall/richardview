@@ -7,3 +7,6 @@ Command to get here: cd /Users/work/Documents/GitHub/richardview
 Command to build PyPI files: python3 -m build
 Command to upload PyPI files: python3 -m twine upload dist/*
 Username: __token__
+
+To rename from RichardView, replace richardview and RichardView, 
+change all the .rst and autodoc files, delete and rebuild all the HTML's.
