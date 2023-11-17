@@ -45,7 +45,6 @@ class VibeCheckWidget(generic_widget.GenericWidget):
         self.set_field('Vibe',vibe)
         self.success_flag=True
 
-
     def on_serial_query(self):
         """"Nothing is done on a serial query for this device."""
         self.poll_device()

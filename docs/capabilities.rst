@@ -31,21 +31,24 @@ Currently, RichardView comes with widgets for the following devices:
 * VICI Valco Automatic 2-Way Selector Valve
 * VICI Valco Automatic 8-Way Selector Valve
 * SRI 8610C Gas Chromatographs
+* CellKraft P-Series Flow-Through Humidifiers
 
 We hope that RichardView users will write and share widgets to control their own devices, eventually creating an ecosystem 
 of available widgets that others can use. 
 Using the procedures outlined in the tutorial section, it is straightforward to write a new widget to control (or, if that is impractical, to simply log data from) a given physical device. 
-Most often, this means writing a widget that queries the device via a serial port. One can determine whether this is possible by consulting a device's manual and looking for a 
-'serial,' 'RS232,' 'RS485,' or equivalent interface.
+The 'user-created-widgets' folder in the GitHub src file is where we'll place any new widgets that are sent to us.
+
+Most widgets communicate with their device using a serial port. One can determine whether this is possible by consulting a device's manual and looking for a 
+'serial,' 'RS232,' 'RS485,' or equivalent interface. While most of our devices use RS232 ASCII serial communication, RichardView also supports controlling devices via Modbus, 
+manufacturer-provided Python drivers for specific instruments, or other Python packages for particular serial communication protocols.
 
 One can also write a widget that watches a specific computer file for updates, then 
 displays those values in a widget. This is useful for devices like gas chromatographs that are far too complicated to control entirely via a user-written serial protocol, but that log 
 data to a specific file, and whose data it would be convenient to log along with the data from all the dashboard-controlled instruments. See the Tutorial subsection on the GenericWidget class.
 
+RichardView is also well-suited to making GUIs to control Arduino devices, as in the IoTRelayWidget in the majumdar_lab_widgets package. 
+It also works quite well with LabJacks or other similar hardware to read and generate analog signals. 
 It would also be quite easy to write widgets to control DC or stepper motors, using any of a number of commercially available USB-controlled H-bridge or stepper motor driver circuits. 
-We have not done this yet, but note it because it opens the door to controlling custom electromechanical devices.
-It's also easy to write widgets to interface with user-created Arduino devices, as with the IoTRelayWidget in the majumdar_lab_widgets package. 
-It also shouldn't be too hard to implement Modbus support, but we haven't done so yet.
 
 Note that RichardView was designed to sample only once per second. It might be able to sample a little faster, but not a lot faster. 
 If you need more than 5 Hz sampling, you should probably look into other data acquisition and control schemes. A workaround for 

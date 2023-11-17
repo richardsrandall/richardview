@@ -161,7 +161,7 @@ class AutomationWidget:
         if not (confirm_function is None):
             confirm_function()
 
-    def schedule_await_condition(self,condition,console_message=None):
+    def schedule_await_condition(self,condition,console_message='(No summary provided)'):
         """This function schedules the script to 'await' a certain condition, such as a thermocouple temperature dropping below a certain value, 
         before allowing the automation script to proceed. Data logging and GUI functions proceed in the meantime. While the script is awaiting 
         the condition, a 'Skip' button also becomes available in the automation control widget. 

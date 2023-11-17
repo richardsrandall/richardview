@@ -43,14 +43,28 @@ tkinter GUI elements and StringVar objects,
 provide a clean way for automation scripts to control widgets, and let you avoid manually defining a ``log_data`` 
 function for most widgets.
 
-Now that we've described fields, here are the functions/methods that you'll probably want to implement for most widgets:
+Now that we've described fields, here are the functions/methods that you may want to implement for most widgets:
 
 * ``__init__``: the constructor method; required
-* ``on_serial_open``: called after the first query and read after opening a serial connection
+* ``build_serial_object``: called before the first serial query; opens whatever serial connection is needed
+* ``on_handshake_query``: sends a query to check that the proper device is connected to the serial line
+* ``on_handshake_read``: reads the result of the handshake and returns whether or not it was valid
+* ``on_serial_open``: called right after the handshake read, with an argument denoting handshake success or failure
 * ``on_serial_query``: called when the dashboard prompts the widget to query its serial line for new readings
 * ``on_serial_read``: called when the dashboard prompts the widget to check its serial line for a response
 * ``on_serial_close``: called just after the serial connection closes
 * ``on_confirm``: called when the user clicks the confirm button
+
+All widgets should have ``__init__``, ``on_serial_open``, ``on_serial_query``, ``on_serial_read``, and ``on_serial_close`` 
+implemented. All widgets that write values to the device, as opposed to just reading values, should have ``on_confirm`` 
+implemented. Devices that use a serial connection other than a pySerial Serial object (i.e., simple ASCII RS232 communication) 
+should override the default ``build_serial_object`` method.
+
+Finally, the default behavior is to use ``on_serial_query`` as the 
+``on_handshake_query`` method and ``on_serial_read`` as the ``on_handshake_read`` method, with the handshake considered to 
+have failed if ``on_serial_read`` raises an exception. Basically, by default you can use a normal query/read cycle as a 
+handshake, but you have the option of having a 'special' handshake that happens the first time only. A special handshake is handy if you want 
+to query the instrument for something like a device ID that need not be queried every single cycle.
 
 Below, we've included the whole ``Valco2WayValveWidget`` implementation; reading that is probably the easiest way to 
 understand what all these methods do. But first, here are a couple of important points:
@@ -71,11 +85,14 @@ understand what all these methods do. But first, here are a couple of important 
     process the data before logging it or log data that aren't RichardView fields. It just needs to return a ``dict`` of the 
     names and values of the data to be logged at a given time step.
 
-*   The ``on_serial_read`` method is expected to return ``True``, ``False``, or an error string based on whether a valid response was read from 
-    the serial port. This is important because when the widget first queries and reads from the serial device (a 'handshake'), 
-    the return value of ``on_serial_read`` is passed as an argument to ``on_serial_open``. If ``on_serial_open`` receives a 
+*   The ``on_handshake_read`` method is expected to return ``True`` or ``None`` if a valid response was read from 
+    the serial port and to raise an exception or return ``False`` or a string error message otherwise. 
+    This is important because when the widget first queries and reads from the serial device,
+    the return value of ``on_handshake_read`` is passed as an argument to ``on_serial_open``. If ``on_serial_open`` receives a 
     value of ``False`` or ``'Failed to Parse Response'``, you'll probably want set the values of the sensor readouts to something like "No Reading". 
-    If it returns a string error message, that message will automatically be printed to the console.
+    If it returns a string error message, that message will automatically be printed to the console. By default, ``on_serial_read`` is 
+    used as ``on_handshake_read``, and the handshake will be considered successful unless ``on_serial_read`` raises an exception or 
+    returns ``False`` or a string error message.
 
 *   There are a couple of special features of ``GenericWidget`` that are meant to deal with funny edge cases, like a widget with 
     no serial connection or a device that takes a long time to respond to serial queries. 
@@ -192,16 +209,19 @@ Here's what the widget ends up looking like:
     :alt: A Valco2WayValve widget
 
 
-Connecting to an Instrument and Finding its Serial Protocol
+Connecting to Instruments with Text-Based Serial Protocols
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
-In principle, RichardView can control any instrument that uses a text-based serial protocol to communicate with a 
-computer. In practice, finding that protocol can be tricky. The protocol consists of a baud rate (an integer value, 
+Many instruments communicate with computers by receiving and sending binary-encoded text messages. By default, RichardView 
+widgets use this type of communication, enabled by the pySerial Python package. 
+
+In principle, a RichardView widget with pySerial can control any instrument that uses a text-based serial protocol. 
+In practice, finding that protocol can be tricky. The protocol consists of a baud rate (an integer value, 
 like 19200), a syntax for sending commands, and a syntax in which replies are sent.
 
 It's easiest if you can find a manual for your device that contains its serial protocol. If that fails, often the 
 manufacturer will have documentation on the serial protocol that they can send upon request. It may be referred to 
-as an RS232 protocol, an RS485 protocol, or something else.
+as an RS232, DB9, or serial protocol.
 
 If you have a manufacturer-supplied program that can talk to the device, you can also try to listen in on its connection 
 and reverse-engineer the serial protocol. Some programs that may help do this are portmon, com0com, and realterm. This works 
@@ -215,8 +235,74 @@ that a new serial port appeared when the instrument was plugged in. Sometimes, y
 to enable serial communications; if so, the manual may explain how to do so.
 
 Before trying to code a RichardView widget, we recommend sending the relevant commands manually to make sure the protocol works as 
-expected. One easy way to do this is to use the Pyserial library in the Python shell, accessed via IDLE. The Pyserial 
+expected. One easy way to do this is to use the pySerial library in the Python shell, accessed via IDLE. The pySerial 
 website has some useful examples_.
+
+On occasion, an instrument will require serial parameters like parity and stop bits that are different from the pySerial default. 
+Simple overide the ``build_serial_object`` function, replacing it with a function that sets ``self.serial_object`` to a pySerial 
+Serial object that was constructed with whatever special parameters are required, per the online pySerial documentation.
+
+Connecting to Instruments with Other Python Serial Packages
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+There are various other serial communication standards besides RS232 with ASCII-encoded text. One example is the 
+RS485 standard with the Modbus communication protocol, a system commonly used for industrial controls. Another is 
+the VISA standard, which helps manufactuers create cross-platform drivers for there instruments. There are 
+existing Python libraries to facilitate communications using many of these standards, such as minimalmodbus and pyvisa. 
+
+The workflow to use one of these protocols is similar to that for 'plain' RS232 serial. First, write a standalone (non-RichardView) 
+Python script that can read from and write to your instrument, ensuring that you understand how Python communicates with your 
+instrument. Second, overide the ``build_serial_object`` function in your widget class, replacing it with a function 
+that sets ``self.serial_object`` to whatever object represents your serial connection (e.g. a ``pymodbus.ModbusSerialClient`` object). 
+If ``build_serial_object`` raises an exception or returns ``None``, the connection will be assumed to have failed. Then, 
+implement the handshake, query, read, and confirm methods as normal. Note that if you wish to use ``write_via_queue``, the 
+serial object must have a ``write`` method. Additionally, see the note below on 'blocking code'.
+
+The built-in CellKraft humidifier widget is a good example of a widget that uses Modbus communications instead of ASCII text-based 
+serial communications.
+
+Connecting to Instruments with Manufacturer-Provided Python Drivers
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Many instrument manufacturers already provide Python drivers to interface with their instruments. 
+To use one of these drivers, just overide the ``build_serial_object`` function in 
+your widget class, replacing it with a function 
+that sets ``self.serial_object`` to whatever object represents the device. If ``build_serial_object`` raises an exception or 
+returns ``None``, the connection will be assumed to have failed. Then, 
+implement the handshake, query, read, and confirm methods as normal. Note that if you wish to use ``write_via_queue``, the 
+serial object must have a ``write`` method, so it probably won't work with most 3rd-party drivers. 
+See the note on blocking code below.
+
+See the project Github-->user-created-widgets-->thorlabs_opm_widget for an example of a widget that uses a manufacturer-provided 
+API to communicate to the instrument. In this case, Thorlabs provided a Python wrapper for a .dll driver that makes it very 
+easy to query a light power meter.
+
+Using Drivers and Serial Libraries with Blocking or Asynchronous Code
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+One caveat is to be careful of drivers or library with blocking code. Blocking code is code that occupies the entire program 
+until it executes. With non-blocking text-based pySerial communications, you can instantaneously write to the device, 
+do other things elsewhere in the program, then check back later to see if there was a response. RichardView uses this to 
+query many devices in parallel. However, a pymodbus query will block all other tasks for ~0.1s while it waits for an instrument to respond. 
+The same is true of using the Thorlabs driver to query a light meter. 
+
+Suppose a blocking serial call takes ~0.1s to receive a response to its query. If there's only blocking code for one query in one 
+widget, it's not the end of the world. However, if you have 4 widgets each of which makes 3 blocking modbus queries per 
+cycle, the total blocking time would be ~1.2s, which is greater than RichardView's refresh period and would likely cause a crash 
+or poor performance. So if you must use a blocking query to an instrument, note that it won't scale very well. Note that blocking code to initialize 
+a serial object is normal and not a big deal; blocking in query-response cycles is the issue.
+
+This is our advice for working around this problem:
+
+#. Use a pyserial Serial object with the usual query-read structure wherever possible, or another package that allows you to query and then check later for responses.
+#. If you must use blocking queries, use as few as possible in each widget refresh, use as few of those widgets as possible, and use ``update_every_n_cycles`` to make the blocking queries happen less frequently.
+#. If that fails, find an asynchronous serial library to achieve the type of control you want. See below.
+
+Asyncio is Python's built-in utility for running tasks asynchronously, which can be useful for letting serial queries take place in 
+the background. Asynchronous versions often exist both for serial protocol packages (e.g. pymodbus) and for manufacters' drivers. 
+RichardView supports the use of asyncio through the ``async-tkinter-loop`` package. 
+Look at ``built_in_widgets.async_demo_widget`` for a simple example of how to use 
+an asynchronous routine to update the state of a widget. While asyncio is powerful, it's a bit of an advanced Python topic, 
+so RichardView was designed to work without it. So, getting asyncio to work perfectly with the ``generic_widget`` superclass, 
+while possible, can be a bit annoying. But if you understand asyncio, you can definitely figure it out.
 
 .. _examples: https://pyserial.readthedocs.io/en/latest/shortintro.html
 

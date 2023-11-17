@@ -100,10 +100,11 @@ At a regular interval, usually once a second, the dashboard does all of the foll
 * Run each function in a list of interlock functions, specified when the dashboard is built, to perform any safety or status checks
 
 This is all done with a simple event-driven framework, with both the graphical interface and the event-driven functionality 
-implemented in Python's built-in tkinter library. 
-The code doesn't use multithreading or asynchronous libraries like asyncio. This 
-keeps things simple, but also means that when writing widgets, we must beware of any 'blocking code' that could bog down the system and potentially cause 
-it to crash.
+implemented in Python's built-in tkinter library. RichardView runs Tkinter within the asyncio framework (using the async-tkinter-mainloop library), 
+which means that certain tasks can be run asynchronously, such as updating interface fields after a serial device responds. 
+However, the code doesn't use multithreading, which means that when writing widgets, we must beware of any 'blocking code' that could bog down the system and potentially cause 
+it to crash. More details on this are in the 'Writing Your Own Widgets' tutorial.
+
 
 Processing Logged Data
 **********************
@@ -150,12 +151,14 @@ a namespace with several convenient automation functions already defined:
 * ``schedule_function(function)``
 * ``schedule_action(widget_nickname, field_name, new_value, confirm=True)``
 * ``schedule_delay(duration)``
+* ``schedule_await_condition(condition, console_summary='(No summary provided)')``
 
 ``schedule_function`` executes an arbitrary function that you pass. ``schedule_action`` changes a field in a RichardView 
 widget (provided it's a subclass of GenericWidget) and optionally executes the confirm function, 
 emulating a human adjusting an input field and clicking the confirm button. 
 ``schedule_delay`` schedules a wait, much like ``time.sleep``, except that the wait occurs once the automation script is started, 
-not when it's loaded. Here is a simple script demonstrating these functions:
+not when it's loaded. ``schedule_await_condition`` causes the script to wait until a certain condition is satisfied. 
+Here is a simple script demonstrating these functions:
 
 .. code-block:: python
 
@@ -165,9 +168,17 @@ not when it's loaded. Here is a simple script demonstrating these functions:
     schedule_function(lambda: print("Turning on light."))
     schedule_action('UV Light','Status Selection','On')
     # This widget is an ultraviolet light controlled by an IoT Relay Widget
-    schedule_delay('0:01:00') # Wait 1 minute
+    schedule_delay('0:00:15') # Wait 15 seconds
     schedule_function(lambda: print("Turning off light."))
     schedule_action('UV Light','Status Selection','Off')
+    # Now, define a condition to check, and wait til it's fulfilled to print something
+    def check_temp(dashboard):
+        if float(dashboard.widgets_by_nickname['Reactor TC'].get_field('Temperature'))>33:
+            return True
+        else:
+            return False
+    schedule_await_condition(check_temp, 'Reactor Temp > 33C')
+    schedule_function(lambda: print("Temperature has exceeded 33C"))
 
 Note that using ``schedule_action`` requires that you know a widget's nickname and the name of the field you want to change. 
 If you're not sure, click the "automation help" button in the GUI, and a list of all the widgets' nicknames and fields 
@@ -247,6 +258,33 @@ passed to ``schedule_function``, not freestanding code within the script, as her
     #Schedule a call to that function at the appropriate time
     schedule_delay('1:00:00')
     schedule_function(check_for_panic)
+
+Finally, we can use ``schedule_await_condition`` to wait until a certain condition is satisfied to proceed. A 'skip' button 
+also shows up in the widget while the script is waiting. The 'condition' is a function that takes the Dashboard object as 
+an argument and returns a boolean (True or False) with whether the condition has been satisfied; see some examples below. 
+Remember that the 'Automation Help' button will remind you of the names and fields of your various widgets. An await step 
+is stored internally as a 1-second delay that is renewed every the time the condition isn't met, so your 'time remaining' 
+counter may be a couple of seconds off for scripts that use this function. The ≥ symbol in the time remaining means that one 
+or more future steps is an awaiting step.
+
+.. code-block:: python
+
+    # Define a condition to check, and wait til it's fulfilled to print something
+    def check_temp(dashboard):
+        if float(dashboard.widgets_by_nickname['Reactor TC'].get_field('Temperature'))>33:
+            return True
+        else:
+            return False
+    schedule_await_condition(check_temp, 'Reactor Temp > 33C')
+    schedule_function(lambda: print("Temperature has exceeded 33C"))
+
+Alternatively, we can do the same thing in a one-liner with a lambda function:
+
+.. code-block:: python
+
+    # Define a condition to check, and wait til it's fulfilled to print something
+    schedule_await_condition((lambda d: float(d.widgets_by_nickname['Reactor TC'].get_field('Temperature'))>33), 'Reactor Temp > 33C')
+    schedule_function(lambda: print("Temperature has exceeded 33C"))
 
 Common Issues
 *************

@@ -36,7 +36,7 @@ class RichardViewDashboard:
         self.name = dashboard_name
         root = Tk()
         self.root = root
-        window_title="RichardView 0.1.8 Alpha"
+        window_title="RichardView 0.1.6 Alpha"
         self.title = window_title
         root.title(window_title)
         self.use_serial_emulators = use_serial_emulators
@@ -193,7 +193,7 @@ class RichardViewDashboard:
         for widget in self.all_widgets+system_widgets:
             frame = widget.get_frame()
             for child in frame.winfo_children():
-                print(type(child))
+                #print(type(child))
                 s = str(type(child))
                 if ('tkinter.Label' in s) or ('tkinter.Button' in s) or ('tkinter.OptionMenu' in s) or ('tkinter.Entry' in s):
                     font_name = child['font']

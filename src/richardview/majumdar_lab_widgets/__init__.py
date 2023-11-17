@@ -9,3 +9,4 @@ from .iot_relay_widget import *
 from .valco_2_way_valve_widget import *
 from .valco_8_way_valve_widget import *
 from .sri_gc_fid_widget import *
+from .cellkraft_humidifier_widget import *

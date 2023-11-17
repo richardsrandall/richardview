@@ -4,3 +4,6 @@ richardview
 pyserial
 numpy
 pandas
+asyncio
+async-tkinter-loop
+pymodbus

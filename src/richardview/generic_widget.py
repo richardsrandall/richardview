@@ -117,8 +117,13 @@ class GenericWidget:
         try:
             self.serial_object = self.build_serial_object()
         except Exception as e:
-            print("Error establishing serial connection to "+self.serial_selected.get()+":")
-            print(e)
+            print("Nurrr")
+            try:
+                print("Error establishing serial connection to "+self.serial_selected.get()+":")
+                print(e)
+            except:
+                print("Error establishing serial connection to "+self.name+":")
+                print(e)
             self.serial_object=None
         if not self.no_serial and self.serial_object is None: #Serial object being none is taken as a proxy for failure
             self.on_serial_open(False)
@@ -164,7 +169,7 @@ class GenericWidget:
     def on_handshake_query(self): #This function gets called whenever the widget makes the first query to its serial port
         """This function gets called whenever the widget makes the first query to its serial port. It should send a query whose response on_handshake_read() will parse. 
         By default, it just sends a normal query, but this can be overridden with a custom handshake."""
-        print("Device '"+self.name+"' has no handshake defined; just using a standard query/read cycle. Handshake will be deemed a success if read() returns True or nothing, and a failure if read() returns an error message or raises an exception.")
+        print("Device '"+self.name+"' has no handshake defined; just using a standard query/read cycle. See on_handshake_read docs.")
         self.on_serial_query()
 
     def on_handshake_read(self): #This function gets called a little while after on_handshake_query
@@ -347,18 +352,19 @@ class GenericWidget:
         try:
             self.sending_queue=[]
             self.queue_delays=[]
-            self.on_handshake_query()
+            self._open_serial_query()
             self._update_cycle_counter=int(self.update_every_n_cycles*4/5)#Force an update the next cycle
             time_to_wait = int((self.parent_dashboard._serial_control_widget.serial_polling_wait)*(int(self.update_every_n_cycles*4/5)+0.5))
             self.parent_dashboard.get_tkinter_object().after(time_to_wait,lambda: self._open_serial_read())
         except Exception as e:
+            print("Error in user-defined on_handshake_query or on_serial_query function:")
             print(traceback.format_exc())
             pass
 
     def _open_serial_query(self):
-        """Opens the connection, if needed, or constructs a serial emulator. Calls query_serial for the first time."""
+        """Calls query_serial for the first time."""
         self._update_cycle_counter=-1#Ensure that a query gets made the first time this method runs
-        self.query_serial()
+        self.on_handshake_query()
 
     def _open_serial_read(self):
         """Calls the read_serial method, passing the result (a bool of whether the handshake was successful) to the on_serial_open method that is hopefully defined in a subclass implementation. 
@@ -379,7 +385,10 @@ class GenericWidget:
                     print("Handshake failed on '"+str(self.name)+"' with message: "+str(handshake_success))
                 if not self.no_serial:
                     self.serial_status.set("No device found.")
-                    self.serial_object.close()
+                    try:
+                        self.serial_object.close()
+                    except:
+                        pass
                     self.serial_object = None
             self.on_serial_open(handshake_success)
             if handshake_success is True and not self.no_serial:
@@ -434,7 +443,10 @@ class GenericWidget:
                 self.serial_object = None
             except Exception:
                 pass
-            print("Closing "+self.serial_selected.get()+" for \""+self.name+"\"")
+            try:
+                print("Closing "+self.serial_selected.get()+" for \""+self.name+"\"")
+            except:
+                pass
         if not self.no_serial:
             self.serial_menu.configure(state='normal')
             self.serial_status.set("Not connected.")

@@ -151,6 +151,13 @@ The ''SRIGasChromatographFIDWidget'' class
     :private-members:
     :show-inheritance:
 
+The ''CellkraftHumidifierWidget'' class
+-----------------------------------------------
+.. autoclass:: richardview.majumdar_lab_widgets.cellkraft_humidifier_widget.CellkraftHumidifierWidget
+    :members:
+    :private-members:
+    :show-inheritance:
+
 The ''run_demo_dashboard'' function
 ************************************
 
